@@ -69,14 +69,14 @@ EXPOSE 443
 # Health check the /health endpoint (the expectation is that the
 # HTTP port 80 is redirected to the TLS port 443).
 HEALTHCHECK \
-    --start-period=15s --timeout=3s --interval=30s \
-    CMD \
-        curl \
+    --start-period=15s --interval=30s --timeout=3s \
+    CMD curl \
         --silent \
         --fail \
         --location \
         --show-error \
-        --insecure http://localhost/health
+        --insecure \
+        http://localhost/health
 
 ENV USER=${USER_NAME}
 USER ${USER_NAME}:${GROUP_NAME}
