@@ -36,6 +36,7 @@ RUN --mount=type=bind,target=/scripts,from=with-scripts,source=/scripts \
         --silent \
         --fail \
         --location \
+        --show-error \
         --remote-name \
         --output-dir /tmp/gotify-server https://github.com/gotify/server/releases/download/${GOTIFY_SERVER_VERSION:?}/gotify-linux-${PKG_ARCH:?}.zip \
     && pushd /tmp/gotify-server \
