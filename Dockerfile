@@ -33,13 +33,9 @@ RUN --mount=type=bind,target=/scripts,from=with-scripts,source=/scripts \
     # Download and install the release. \
     && mkdir -p /tmp/gotify-server \
     && PKG_ARCH="$(dpkg --print-architecture)" \
-    && curl \
-        --silent \
-        --fail \
-        --location \
-        --show-error \
-        --remote-name \
-        --output-dir /tmp/gotify-server https://github.com/gotify/server/releases/download/${GOTIFY_SERVER_VERSION:?}/gotify-linux-${PKG_ARCH:?}.zip \
+    && homelab download-file-to \
+        https://github.com/gotify/server/releases/download/${GOTIFY_SERVER_VERSION:?}/gotify-linux-${PKG_ARCH:?}.zip \
+        /tmp/gotify-server \
     && pushd /tmp/gotify-server \
     && unzip gotify-linux-${PKG_ARCH:?}.zip \
     && popd \
