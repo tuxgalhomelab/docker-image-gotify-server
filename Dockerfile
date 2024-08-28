@@ -68,13 +68,7 @@ EXPOSE 443
 # HTTP port 80 is redirected to the TLS port 443).
 HEALTHCHECK \
     --start-period=15s --interval=30s --timeout=3s \
-    CMD curl \
-        --silent \
-        --fail \
-        --location \
-        --show-error \
-        --insecure \
-        http://localhost/health
+    CMD homelab healthcheck-service http://localhost/health
 
 ENV USER=${USER_NAME}
 USER ${USER_NAME}:${GROUP_NAME}
