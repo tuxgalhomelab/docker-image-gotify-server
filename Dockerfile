@@ -21,6 +21,7 @@ ARG GOTIFY_SERVER_VERSION
 # hadolint ignore=DL4006,SC2086
 RUN --mount=type=bind,target=/scripts,from=with-scripts,source=/scripts \
     set -E -e -o pipefail \
+    && export HOMELAB_VERBOSE=y \
     && homelab install unzip \
     # Create the user and the group. \
     && homelab add-user \
