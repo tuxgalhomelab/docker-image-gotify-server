@@ -2,12 +2,53 @@
 
 ARG BASE_IMAGE_NAME
 ARG BASE_IMAGE_TAG
-FROM ${BASE_IMAGE_NAME}:${BASE_IMAGE_TAG} AS with-scripts
+
+ARG GO_IMAGE_NAME
+ARG GO_IMAGE_TAG
+FROM ${GO_IMAGE_NAME}:${GO_IMAGE_TAG} AS builder
+
+ARG NVM_VERSION
+ARG NVM_SHA256_CHECKSUM
+ARG IMAGE_NODEJS_VERSION
+ARG YARN_VERSION
+ARG GOTIFY_SERVER_VERSION
 
 COPY scripts/start-gotify-server.sh /scripts/
+COPY patches /patches
 
-ARG BASE_IMAGE_NAME
-ARG BASE_IMAGE_TAG
+# hadolint ignore=DL4006,SC3040,SC3009
+RUN \
+    set -E -e -o pipefail \
+    && export HOMELAB_VERBOSE=y \
+    && homelab install build-essential git \
+    && homelab install-node \
+        ${NVM_VERSION:?} \
+        ${NVM_SHA256_CHECKSUM:?} \
+        ${IMAGE_NODEJS_VERSION:?} \
+    # Download gotify-server repo. \
+    && homelab download-git-repo \
+        https://github.com/gotify/server \
+        ${GOTIFY_SERVER_VERSION:?} \
+        /root/gotify-server-build \
+    && pushd /root/gotify-server-build \
+    # Apply the patches. \
+    && (find /patches -iname *.diff -print0 | sort -z | xargs -0 -r -n 1 patch -p2 -i) \
+    && source /opt/nvm/nvm.sh \
+    && npm install -g yarn@${YARN_VERSION:?} \
+    # Build UI for Gotify server. \
+    && pushd ui && PUPPETEER_SKIP_DOWNLOAD=true yarn && popd && make build-js \
+    # Build Gotify server. \
+    && go mod tidy \
+    && CGO_ENABLED=1 GOOS=linux go build \
+        -a \
+        -ldflags="-X main.Version=${GOTIFY_SERVER_VERSION#v} -X main.BuildDate=$(date "+%F-%T") -X main.Commit=$(git rev-parse --verify HEAD) -X main.Mode=prod" \
+        . \
+    && popd \
+    && mkdir -p /output/{bin,scripts,configs} \
+    # Copy the build artifacts. \
+    && cp /root/gotify-server-build/server /output/bin \
+    && cp /scripts/* /output/scripts
+
 FROM ${BASE_IMAGE_NAME}:${BASE_IMAGE_TAG}
 
 ARG USER_NAME
@@ -16,11 +57,10 @@ ARG USER_ID
 ARG GROUP_ID
 ARG GOTIFY_SERVER_VERSION
 
-# hadolint ignore=DL4006,SC2086
-RUN --mount=type=bind,target=/scripts,from=with-scripts,source=/scripts \
+# hadolint ignore=DL4006,SC2086,SC3009
+RUN --mount=type=bind,target=/gotify-server-build,from=builder,source=/output \
     set -E -e -o pipefail \
     && export HOMELAB_VERBOSE=y \
-    && homelab install unzip \
     # Create the user and the group. \
     && homelab add-user \
         ${USER_NAME:?} \
@@ -28,35 +68,20 @@ RUN --mount=type=bind,target=/scripts,from=with-scripts,source=/scripts \
         ${GROUP_NAME:?} \
         ${GROUP_ID:?} \
         --create-home-dir \
-    # Download and install the release. \
-    && mkdir -p /tmp/gotify-server \
-    && PKG_ARCH="$(dpkg --print-architecture)" \
-    && homelab download-file-to \
-        https://github.com/gotify/server/releases/download/${GOTIFY_SERVER_VERSION:?}/gotify-linux-${PKG_ARCH:?}.zip \
-        /tmp/gotify-server \
-    && pushd /tmp/gotify-server \
-    && unzip gotify-linux-${PKG_ARCH:?}.zip \
-    && popd \
-    && mkdir -p /opt/gotify-server-${GOTIFY_SERVER_VERSION:?} \
+    && mkdir -p /opt/gotify-server-${GOTIFY_SERVER_VERSION:?}/bin /data/gotify-server/{config,data} \
+    && cp /gotify-server-build/bin/server /opt/gotify-server-${GOTIFY_SERVER_VERSION:?}/bin/gotify-server \
     && ln -sf /opt/gotify-server-${GOTIFY_SERVER_VERSION:?} /opt/gotify-server \
-    && cp /tmp/gotify-server/gotify-linux-${PKG_ARCH:?} /opt/gotify-server/gotify-server \
-    && ln -sf /opt/gotify-server/gotify-server /opt/bin/gotify-server \
-    # Set up the gotify-server config and data directories. \
-    && mkdir -p /config /data \
+    && ln -sf /opt/gotify-server/bin/gotify-server /opt/bin/gotify-server \
     # Copy the start-gotify-server.sh script. \
-    && cp /scripts/start-gotify-server.sh /opt/gotify-server/ \
+    && cp /gotify-server-build/scripts/start-gotify-server.sh /opt/gotify-server/ \
     && ln -sf /opt/gotify-server/start-gotify-server.sh /opt/bin/start-gotify-server \
     # Set up the permissions. \
     && chown -R ${USER_NAME:?}:${GROUP_NAME:?} \
         /opt/gotify-server-${GOTIFY_SERVER_VERSION:?} \
         /opt/gotify-server \
-        /opt/bin/gotify-server \
-        /opt/bin/start-gotify-server \
-        /config \
-        /data \
+        /opt/bin/{gotify-server,start-gotify-server} \
+        /data/gotify-server \
     # Clean up. \
-    && rm -rf /tmp/gotify-server \
-    && homelab remove unzip \
     && homelab cleanup
 
 # Expose just the TLS port used by Gotify server.

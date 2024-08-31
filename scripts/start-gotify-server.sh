@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 set -E -e -o pipefail
 
-gotify_config="/config/config.yml"
+gotify_config="/data/gotify-server/config/config.yml"
 
 set_umask() {
     # Configure umask to allow write permissions for the group by default
@@ -24,15 +24,15 @@ server:
 
 database:
   dialect: sqlite3
-  connection: /data/gotify.db
+  connection: /data/gotify-server/data/gotify.db
 
 # On database creation, gotify creates an admin user
 defaultuser:
   name: testuser
   pass: testpass
 passstrength: 10
-uploadedimagesdir: /data/images
-pluginsdir: /data/plugins
+uploadedimagesdir: /data/gotify-server/data/images
+pluginsdir: /data/gotify-server/data/plugins
 registration: false
 EOF
     fi
