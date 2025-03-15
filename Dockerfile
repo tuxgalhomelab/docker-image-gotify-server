@@ -36,7 +36,7 @@ RUN \
     && source /opt/nvm/nvm.sh \
     && npm install -g yarn@${YARN_VERSION:?} \
     # Build UI for Gotify server. \
-    && pushd ui && PUPPETEER_SKIP_DOWNLOAD=true yarn && popd && make build-js \
+    && pushd ui && PUPPETEER_SKIP_DOWNLOAD=true yarn install --network-timeout 10800000 && popd && make build-js \
     # Build Gotify server. \
     && go mod tidy \
     && CGO_ENABLED=1 GOOS=linux go build \
